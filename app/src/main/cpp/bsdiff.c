@@ -185,6 +185,11 @@ static int64_t search(const int64_t *I, const uint8_t *old, int64_t oldsize,
     };
 }
 
+/**
+ * 保持新文件的大小
+ * @param x  文件的大小
+ * @param buf buff
+ */
 static void offtout(int64_t x, uint8_t *buf) {
     int64_t y;
 
@@ -368,6 +373,15 @@ static int bsdiff_internal(const struct bsdiff_request req) {
     return 0;
 }
 
+/**
+ * 差分算法
+ * @param oldfile 老版本文件
+ * @param oldsize 老版本大小
+ * @param newfile 新版本文件
+ * @param newsize 新版本大小
+ * @param stream  差分结构体
+ * @return 
+ */
 int bsdiff(const uint8_t *oldfile, int64_t oldsize, const uint8_t *newfile, int64_t newsize,
            struct bsdiff_stream *stream) {
     int result;
@@ -413,13 +427,21 @@ static int bz2_write(struct bsdiff_stream *stream, const void *buffer, int size)
 
 
 int bsdiff_main(int argc, char *argv[]) {
+    //文件句柄
     int fd;
+    //bz2错误
     int bz2err;
+    //老版本文件 新版本文件
     uint8_t *old, *new;
+    //旧版本文件和新版本文件的大小
     off_t oldsize, newsize;
+    //大小为8的buff
     uint8_t buf[8];
+    //增量文件
     FILE *pf;
+    //差分结构体
     struct bsdiff_stream stream;
+    //bz2文件
     BZFILE *bz2;
 
     memset(&bz2, 0, sizeof(bz2));
@@ -429,8 +451,42 @@ int bsdiff_main(int argc, char *argv[]) {
 
     if (argc != 4) errx(1, "usage: %s oldfile newfile patchfile\n", argv[0]);
 
-    /* Allocate oldsize+1 bytes instead of oldsize bytes to ensure
-        that we never try to malloc(0) and get a NULL pointer */
+    /*
+     *  Allocate oldsize+1 bytes instead of oldsize bytes to ensure
+     *  that we never try to malloc(0) and get a NULL pointer
+     *
+     *  旧版本文件分配内存，读出文件内容
+     *
+     *
+     *  int open(const char * pathname, int flags, mode_t mode);
+     *
+     *  参数 pathname 指向欲打开的文件路径字符串
+     *  参数 flags 为文件的打开方式 O_RDONLY 以只读方式打开文件
+     *  参数 mode 只有在建立新版本文件时才会生效, 真正建文件时的权限会受到umask值所影响, 因此该文件权限应该为 (mode-umaks).
+     *
+     *  返回值：成功则返回文件句柄，否则返回-1
+     *
+     *
+     *  off_t lseek(int filedes, off_t offset, int whence);
+     *
+     *  参数 offset 的含义取决于参数 whence：
+     *    1. 如果 whence 是 SEEK_SET，文件偏移量将被设置为 offset。
+     *    2. 如果 whence 是 SEEK_CUR，文件偏移量将被设置为 cfo 加上 offset，
+     *       offset 可以为正也可以为负。
+     *    3. 如果 whence 是 SEEK_END，文件偏移量将被设置为文件长度加上 offset，
+     *       offset 可以为正也可以为负。
+     *
+     *  返回值：新的偏移量（成功），-1（失败）
+     *
+     *
+     *  ssize_t read(int fd, void * buf, size_t count);
+     *
+     *  参数 void *buf 读上来的数据保存在缓冲区buf中，同时文件的当前读写位置向后移
+     *  参数 size_t count 是请求读取的字节数。若参数count 为0, 则read()不会有作用并返回0.
+     *
+     *  返回值：为实际读取到的字节数
+     *
+     */
     if (((fd = open(argv[1], O_RDONLY, 0)) < 0) ||
         ((oldsize = lseek(fd, 0, SEEK_END)) == -1) ||
         ((old = malloc(oldsize + 1)) == NULL) ||
@@ -439,8 +495,13 @@ int bsdiff_main(int argc, char *argv[]) {
         (close(fd) == -1))
         err(1, "%s", argv[1]);
 
-    /* Allocate newsize+1 bytes instead of newsize bytes to ensure
-        that we never try to malloc(0) and get a NULL pointer */
+    /*
+     * Allocate newsize+1 bytes instead of newsize bytes to ensure
+     * that we never try to malloc(0) and get a NULL pointer
+     *
+     * 新版本文件分配内存，读取文件内存
+     *
+     */
     if (((fd = open(argv[2], O_RDONLY, 0)) < 0) ||
         ((newsize = lseek(fd, 0, SEEK_END)) == -1) ||
         ((new = malloc(newsize + 1)) == NULL) ||
@@ -449,32 +510,62 @@ int bsdiff_main(int argc, char *argv[]) {
         (close(fd) == -1))
         err(1, "%s", argv[2]);
 
-    /* Create the patch file */
+    /*
+     * Create the patch file
+     *
+     * 创建一个patch文件
+     */
     if ((pf = fopen(argv[3], "w")) == NULL)
         err(1, "%s", argv[3]);
 
-    /* Write header (signature+newsize)*/
+    /**
+     * Write header (signature+newsize)
+     *
+     * 写头部
+     *
+     * size_t fwrite(const void* buffer, size_t size, size_t count, FILE* stream);
+     *
+     * 返回值：返回实际写入的数据块数目
+     *（1）buffer：是一个指针，对fwrite来说，是要获取数据的地址；
+     *（2）size：要写入内容的单字节数；
+     *（3）count:要进行写入size字节的数据项的个数；
+     *（4）stream:目标文件指针；
+     *
+     */
     offtout(newsize, buf);
     if (fwrite("ENDSLEY/BSDIFF43", 16, 1, pf) != 1 ||
         fwrite(buf, sizeof(buf), 1, pf) != 1)
         err(1, "Failed to write header");
 
-
+    /**
+     * 以bz2的方式打开增量文件
+     */
     if (NULL == (bz2 = BZ2_bzWriteOpen(&bz2err, pf, 9, 0, 0)))
         errx(1, "BZ2_bzWriteOpen, bz2err=%d", bz2err);
 
+    /**
+     * 差分算法
+     */
     stream.opaque = bz2;
     if (bsdiff(old, oldsize, new, newsize, &stream))
         err(1, "bsdiff");
 
+    /**
+     * 关闭文件
+     */
     BZ2_bzWriteClose(&bz2err, bz2, 0, NULL, NULL);
+
     if (bz2err != BZ_OK)
         err(1, "BZ2_bzWriteClose, bz2err=%d", bz2err);
 
     if (fclose(pf))
         err(1, "fclose");
 
-    /* Free the memory we used */
+    /*
+     * Free the memory we used
+     *
+     * 释放使用的内存
+     */
     free(old);
     free(new);
 

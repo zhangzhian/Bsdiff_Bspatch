@@ -137,13 +137,13 @@ BZ_EXTERN int BZ_API(BZ2_bzDecompressEnd) (
 typedef void BZFILE;
 
 BZ_EXTERN BZFILE* BZ_API(BZ2_bzReadOpen) ( 
-      int*  bzerror,   
-      FILE* f, 
-      int   verbosity, 
+      int*  bzerror,
+      FILE* f,
+      int   verbosity,
       int   small,
-      void* unused,    
-      int   nUnused 
-   );
+      void* unused,
+      int   nUnused
+);
 
 BZ_EXTERN void BZ_API(BZ2_bzReadClose) ( 
       int*    bzerror, 

@@ -8,7 +8,7 @@ package com.yodosmart.bsdiffbspatch;
 public class DiffPatchUtil {
 
     static {
-        System.loadLibrary("diff-patch-lib");
+        System.loadLibrary("diff-patch");
     }
 
     /**
@@ -37,6 +37,4 @@ public class DiffPatchUtil {
     public static native int patch(String oldPath, String newPath,
                                    String patchPath);
 
-    public static native int printPath(String oldPath, String newPath,
-                                   String patchPath);
 }

@@ -17,19 +17,11 @@ public class BsdiffBspatchActivity extends Activity {
         TextView tv = (TextView) findViewById(R.id.sample_text);
 
         String path = Environment.getExternalStorageDirectory().getPath();
-        final String oldpath = path + "/新文件夹/" + "ipc021501.apk" ;
-        final String newpath = path + "/新文件夹/" + "ipc030601.apk";
-        final String patchPath = path + "/新文件夹/" + "ipc.patch";
+        final String oldpath = path + "/新文件夹/" + "0T01X106508_test.bin" ;
+        final String newpath = path + "/新文件夹/" + "0T01X107508_test.bin";
+        final String patchPath = path + "/新文件夹/" + "test.patch";
 
-        final String patchNewPath = path + "/新文件夹/" + "ipc030602.apk";
-//        File oldFile = new File(oldpath);
-//        File newFile = new File(newpath);
-//        File patchFile = new File(patchPath);
-
-//        Log.e("zza","oldFile:"+oldFile.exists());
-//        Log.e("zza","newFile:"+newFile.exists());
-//        Log.e("zza","patchFile:"+patchFile.exists());
-
+        final String patchNewPath = path + "/新文件夹/" + "test_new.bin";
 
         Thread thread = new Thread(new Runnable() {
             @Override

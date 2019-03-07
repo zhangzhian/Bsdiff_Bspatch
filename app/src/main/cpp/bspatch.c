@@ -37,6 +37,11 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+/**
+ * 读取新文件的长度
+ * @param buf  保存数据的buff
+ * @return
+ */
 static int64_t offtin(uint8_t *buf)
 {
 	int64_t y;
@@ -55,6 +60,15 @@ static int64_t offtin(uint8_t *buf)
 	return y;
 }
 
+/**
+ * 增量算法
+ * @param oldfile 老版本文件
+ * @param oldsize 老版本文件大小
+ * @param newfile 新版本文件
+ * @param newsize 新版本文件大小
+ * @param stream bspatch_stream
+ * @return
+ */
 int bspatch(const uint8_t* oldfile, int64_t oldsize, uint8_t* newfile, int64_t newsize, struct bspatch_stream* stream)
 {
 	uint8_t buf[8];
@@ -122,9 +136,13 @@ static int bz2_read(const struct bspatch_stream* stream, void* buffer, int lengt
 
 int bspatch_main(int argc,  char * argv[])
 {
+    //增量文件
 	FILE * f;
+    // 老版本文件
 	int fd;
-	int bz2err;
+	//bz2错误
+    int bz2err;
+    //16+8
 	uint8_t header[24];
 	uint8_t *old, *new;
 	int64_t oldsize, newsize;
@@ -134,27 +152,44 @@ int bspatch_main(int argc,  char * argv[])
 
 	if(argc!=4) errx(1,"usage: %s oldfile newfile patchfile\n",argv[0]);
 
-	/* Open patch file */
+	/**
+	 * Open patch file
+	 * 打开增量文件
+	 */
 	if ((f = fopen(argv[3], "r")) == NULL)
 		err(1, "fopen(%s)", argv[3]);
 
-	/* Read header */
+	/**
+	 * Read header
+	 * 读头部
+	 */
 	if (fread(header, 1, 24, f) != 24) {
 		if (feof(f))
 			errx(1, "Corrupt patch\n");
 		err(1, "fread(%s)", argv[3]);
 	}
 
-	/* Check for appropriate magic */
+	/**
+	 * Check for appropriate magic
+	 *
+	 * int memcmp(const void *buf1, const void *buf2, unsigned int count);
+	 * 比较内存区域buf1和buf2的前count个字节。
+	 */
 	if (memcmp(header, "ENDSLEY/BSDIFF43", 16) != 0)
 		errx(1, "Corrupt patch\n");
 
-	/* Read lengths from header */
+	/**
+	 * Read lengths from header
+	 * 与差分offtout对应
+	 * 读新版本文件的长度
+	 */
 	newsize=offtin(header+16);
 	if(newsize<0)
 		errx(1,"Corrupt patch\n");
 
-	/* Close patch file and re-open it via libbzip2 at the right places */
+	/**
+	 * 打开老版本文件
+	 */
 	if(((fd=open(argv[1],O_RDONLY,0))<0) ||
 		((oldsize=lseek(fd,0,SEEK_END))==-1) ||
 		((old=malloc(oldsize+1))==NULL) ||
@@ -162,21 +197,36 @@ int bspatch_main(int argc,  char * argv[])
 		(read(fd,old,oldsize)!=oldsize) ||
 		(fstat(fd, &sb)) ||
 		(close(fd)==-1)) err(1,"%s",argv[1]);
+    /**
+     * 给新版本文件分配内存
+     */
 	if((new=malloc(newsize+1))==NULL) err(1,NULL);
-
+    /**
+	 * Close patch file and re-open it via libbzip2 at the right places
+	 * 关闭增量文件并且通过libbzip2重新打开
+	 */
 	if (NULL == (bz2 = BZ2_bzReadOpen(&bz2err, f, 0, 0, NULL, 0)))
 		errx(1, "BZ2_bzReadOpen, bz2err=%d", bz2err);
 
 	stream.read = bz2_read;
 	stream.opaque = bz2;
+    /**
+     * 增量算法
+     */
 	if (bspatch(old, oldsize, new, newsize, &stream))
 		errx(1, "bspatch");
 
-	/* Clean up the bzip2 reads */
+	/**
+	 * Clean up the bzip2 reads
+	 * 关闭bzip2的读
+	 */
 	BZ2_bzReadClose(&bz2err, bz2);
 	fclose(f);
 
-	/* Write the new file */
+	/**
+	 * Write the new file
+	 * 写新文件
+	 */
 	if(((fd=open(argv[2],O_CREAT|O_TRUNC|O_WRONLY,sb.st_mode))<0) ||
 		(write(fd,new,newsize)!=newsize) || (close(fd)==-1))
 		err(1,"%s",argv[2]);
