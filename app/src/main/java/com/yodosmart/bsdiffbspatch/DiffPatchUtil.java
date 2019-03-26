@@ -1,5 +1,7 @@
 package com.yodosmart.bsdiffbspatch;
 
+import java.util.List;
+
 /**
  * @Author: 张志安
  * @Mail: zhangzhian2016@gmail.com
@@ -37,4 +39,16 @@ public class DiffPatchUtil {
     public static native int patch(String oldPath, String newPath,
                                    String patchPath);
 
+    /**
+     * native方法 使用oldStr的字符串与newStr的字符串，进行对比，生成List<BsdiffBean>
+     * @param oldStr   旧字符串
+     * @param newStr   新字符串
+     * @param oldSzie  旧字符串长度
+     * @param newSize  新字符串长度
+     * @return
+     * 返回包括相同部分，新字符串的extra str，旧字符串的extra str
+     * type = true 为新字符串extra str
+     * type = false 为旧字符串extra str
+     */
+    public static native List<BsdiffBean> diffStr(String oldStr, String newStr, int oldSzie, int newSize);
 }

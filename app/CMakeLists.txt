@@ -19,6 +19,7 @@ add_library( # Sets the name of the library.
              # Provides a relative path to your source file(s).
              src/main/cpp/diff-patch-lib.cpp
              src/main/cpp/bsdiff.c
+             src/main/cpp/bsdiff_str.c
              src/main/cpp/bspatch.c
              src/main/cpp/bzip2/blocksort.c
              src/main/cpp/bzip2/bzip2.c
